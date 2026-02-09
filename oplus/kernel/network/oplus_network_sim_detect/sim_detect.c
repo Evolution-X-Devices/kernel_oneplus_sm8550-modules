@@ -32,8 +32,10 @@ struct sim_detect_data {
 	int sim_detect;
 };
 
+#ifdef QCOM_PLATFORM
 extern int oem_qmi_common_req(u32 cmd_type, const char *req_data, u32 req_len,
 	char *resp_data, u32 resp_len);
+#endif /*QCOM_PLATFORM*/
 
 static ssize_t proc_sim_detect_read(struct file *file,
                                     char __user *user_buf, size_t count, loff_t *ppos)
@@ -41,7 +43,7 @@ static ssize_t proc_sim_detect_read(struct file *file,
 	int ret = 0;
 	char page[25] = {0};
 	int sim_detect_value = -1;
-	struct sim_detect_data *sim_detect_data = PDE_DATA(file_inode(file));
+	struct sim_detect_data *sim_detect_data = pde_data(file_inode(file));
 
 	if (!sim_detect_data)
 		return 0;
