@@ -166,7 +166,8 @@ static bool oplus_chg_wls_support_bcc(struct oplus_chg_chip *chip);
 static int oplus_chg_track_upload_adsp_err_info(
 	struct battery_chg_dev *bcdev, int err_type);
 int oplus_get_otg_online_status_with_cid_scheme(void);
-static void handle_ap_read_buffer(struct battery_chg_dev *bcdev, struct oplus_ap_read_buffer_resp_msg *resp_msg, size_t len);
+static void handle_ap_read_buffer(struct battery_chg_dev *bcdev,
+	struct oplus_ap_read_buffer_resp_msg *resp_msg, size_t len);
 
 /*extern void oplus_usb_set_none_role(void);*/
 #if defined(OPLUS_FEATURE_POWERINFO_FTM) && defined(CONFIG_OPLUS_POWERINFO_FTM)
@@ -3445,13 +3446,11 @@ static int battery_psy_get_prop(struct power_supply *psy,
 		pval->intval = chip->batt_rm * 1000;
 		break;
 	case POWER_SUPPLY_PROP_CYCLE_COUNT:
-		pval->intval = oplus_gauge_get_batt_cc();
+		pval->intval = chip->charger_cycle;
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN:
-		pval->intval = chip->batt_capacity_mah * 1000;
-		break;
 	case POWER_SUPPLY_PROP_CHARGE_FULL:
-		pval->intval = chip->batt_fcc * 1000;
+		pval->intval = chip->batt_capacity_mah * 1000;
 		break;
 	case POWER_SUPPLY_PROP_MODEL_NAME:
 		pval->strval = pst->model;
@@ -11068,7 +11067,6 @@ u32 oplus_chg_get_pps_status(void)
 	return pst->prop[USB_GET_PPS_STATUS];
 }
 
-#if IS_ENABLED(CONFIG_OPLUS_CHG_TEST_KIT)
 int oplus_check_cc_mode(void) {
 	int rc = 0;
 	struct battery_chg_dev *bcdev = NULL;
@@ -11096,7 +11094,6 @@ int oplus_check_cc_mode(void) {
 	else
 		return MODE_SRC;
 }
-#endif /* CONFIG_OPLUS_CHG_TEST_KIT */
 
 int oplus_chg_set_pps_config(int vbus_mv, int ibus_ma)
 {
@@ -11473,9 +11470,7 @@ struct oplus_chg_operations  battery_chg_ops = {
 	.set_bcc_curr_to_voocphy = oplus_set_bcc_curr_to_voocphy,
 	.pdo_5v = oplus_chg_set_pdo_5v,
 	.get_subboard_temp = oplus_get_subboard_temp,
-#ifdef CONFIG_OPLUS_CHG_TEST_KIT
 	.check_cc_mode = oplus_check_cc_mode,
-#endif
 	.get_ccdetect_online = sm8550_get_ccdetect_online,
 	.get_abnormal_adapter_disconnect_cnt = oplus_get_abnormal_adapter_disconnect_cnt,
 };
@@ -11775,6 +11770,17 @@ static int fg_bq27541_get_battery_fcc(void)
 	return fcc;
 }
 
+static int gauge_get_battery_fcc(int *fcc1, int *fcc2)
+{
+	if (!fcc1 || !fcc2)
+		return -1;
+
+	*fcc1 = fg_bq27541_get_battery_fcc();
+	*fcc2 = *fcc1;
+
+	return 0;
+}
+
 static int fg_bq27541_get_battery_cc(void)
 {
 	static int cc = 0;
@@ -11794,6 +11800,17 @@ static int fg_bq27541_get_battery_cc(void)
 	return cc;
 }
 
+static int gauge_get_battery_cc(int *cc1, int *cc2)
+{
+	if (!cc1 || !cc2)
+		return -1;
+
+	*cc1 = fg_bq27541_get_battery_cc();
+	*cc2 = *cc1;
+
+	return 0;
+}
+
 static int fg_bq27541_get_battery_soh(void)
 {
 	static int soh = 0;
@@ -11811,6 +11828,17 @@ static int fg_bq27541_get_battery_soh(void)
 	}
 
 	return soh;
+}
+
+static int gauge_get_battery_soh(int *soh1, int *soh2)
+{
+	if (!soh1 || !soh2)
+		return -1;
+
+	*soh1 = fg_bq27541_get_battery_soh();
+	*soh2 = *soh1;
+
+	return 0;
 }
 
 static bool fg_bq27541_get_battery_authenticate(void)
@@ -12019,6 +12047,8 @@ static int ap_set_message_id(struct battery_chg_dev *bcdev, u32 message_id)
 
 	reinit_completion(&bcdev->ap_read_ack[AP_MESSAGE_ACK]);
 	rc = pmic_glink_write(bcdev->client, &req_msg, sizeof(req_msg));
+	chg_err("pmic_glink_write, rc %d\n", rc);
+
 	if (!rc) {
 		rc = wait_for_completion_timeout(&bcdev->ap_read_ack[AP_MESSAGE_ACK], msecs_to_jiffies(AP_READ_WAIT_TIME_MS));
 		if (!rc) {
@@ -12061,11 +12091,13 @@ static void handle_ap_read_buffer(struct battery_chg_dev *bcdev,
 		memset(bcdev->ap_read_buffer_dump, 0, sizeof(*bcdev->ap_read_buffer_dump));
 		return;
 	}
+
 	if (resp_msg->message_id >= AP_MESSAGE_MAX_SIZE) {
 		chg_err("message_id %d invalid\n", resp_msg->message_id);
 		memset(bcdev->ap_read_buffer_dump, 0, sizeof(*bcdev->ap_read_buffer_dump));
 		return;
 	}
+
 	memcpy(bcdev->ap_read_buffer_dump->data_buffer, resp_msg->data_buffer, buf_len);
 	bcdev->ap_read_buffer_dump->data_size = buf_len;
 	bcdev->ap_read_buffer_dump->message_id = resp_msg->message_id;
@@ -12122,7 +12154,7 @@ static int fg_bq27541_get_calib_time(int *dod_calib_time, int *qmax_calib_time, 
 	int rc = 0;
 	struct gauge_calib_info info = { 0 };
 
-	if (!chip || !dod_calib_time || !qmax_calib_time){
+	if (!chip || !dod_calib_time || !qmax_calib_time) {
 		chg_err("oplus_chg_chip or qmax_calib_time or dod_calib_time is NULL");
 		return -ENODEV;
 	}
@@ -12151,12 +12183,78 @@ static int fg_bq27541_get_calib_time(int *dod_calib_time, int *qmax_calib_time, 
 	mutex_unlock(&bcdev->ap_read_buffer_lock);
 	*dod_calib_time = info.dod_time;
 	*qmax_calib_time = info.qmax_time;
-	chg_info("read calib_time, dod_calib_time %d, qmax_calib_time %d\n", *dod_calib_time, *qmax_calib_time);
 	return 0;
 err:
 	memset(bcdev->ap_read_buffer_dump, 0, sizeof(*bcdev->ap_read_buffer_dump));
 	mutex_unlock(&bcdev->ap_read_buffer_lock);
 	return -EINVAL;
+}
+
+static int oplus_adsp_gauge_get_device_name(u8 *buf, int len)
+{
+	struct battery_chg_dev *bcdev = NULL;
+	struct oplus_chg_chip *chip = g_oplus_chip;
+	int rc = 0;
+	int index = 0;
+
+	if (!chip) {
+		chg_err("oplus_chg_chip is NULL");
+		return -ENODEV;
+	}
+
+	bcdev = chip->pmic_spmi.bcdev_chip;
+	if (!bcdev || !bcdev->ap_read_buffer_dump) {
+		chg_err("!bcdev || !bcdev->ap_read_buffer_dump");
+		return -ENODEV;
+	}
+
+	mutex_lock(&bcdev->ap_read_buffer_lock);
+	rc = ap_set_message_id(bcdev, AP_MESSAGE_GET_GAUGE_DEVICE_TYPE);
+	if (rc)
+		goto err;
+
+	reinit_completion(&bcdev->ap_read_ack[AP_MESSAGE_GET_GAUGE_DEVICE_TYPE]);
+	rc = wait_for_completion_timeout(&bcdev->ap_read_ack[AP_MESSAGE_GET_GAUGE_DEVICE_TYPE],
+					 msecs_to_jiffies(AP_READ_WAIT_TIME_MS));
+	if (!rc) {
+		chg_err("Error, timed out sending message\n");
+		goto err;
+	}
+
+	index = bcdev->ap_read_buffer_dump->data_size;
+	if (index >= len)
+		goto err;
+
+	memcpy(buf, bcdev->ap_read_buffer_dump->data_buffer, index);
+	memset(bcdev->ap_read_buffer_dump, 0, sizeof(*bcdev->ap_read_buffer_dump));
+	mutex_unlock(&bcdev->ap_read_buffer_lock);
+	return index;
+
+err:
+	memset(bcdev->ap_read_buffer_dump, 0, sizeof(*bcdev->ap_read_buffer_dump));
+	mutex_unlock(&bcdev->ap_read_buffer_lock);
+	return -EINVAL;
+}
+
+static void fg_bq27541_get_device_name(char *name, int len)
+{
+	struct oplus_chg_chip *chip = g_oplus_chip;
+	int retry_count = 1;
+
+	if (!chip) {
+		chg_err("oplus_chg_chip or info is NULL");
+		return;
+	}
+
+retry:
+	oplus_adsp_gauge_get_device_name(name, len);
+	chg_info("fg_bq27541_get_device_name = %s", name);
+	if (!strcmp(name, "unknown") && retry_count > 0) {
+		retry_count--;
+		msleep(200);
+		goto retry;
+	}
+	return;
 }
 
 static int fg_bq27541_get_qmax(int *qmax1, int *qmax2)
@@ -12173,7 +12271,6 @@ static int fg_bq27541_get_qmax(int *qmax1, int *qmax2)
 	ret = bcc_read_buffer(bcdev);
 	*qmax1 = bcdev->bcc_read_buffer_dump.data_buffer[3];
 	*qmax2 = bcdev->bcc_read_buffer_dump.data_buffer[4];
-	chg_err("read qmax from adsp, qmax1 %d, qmax2 %d\n", *qmax1, *qmax2);
 
 	return 0;
 }
@@ -12213,6 +12310,10 @@ static struct oplus_gauge_operations battery_gauge_ops = {
 	.get_gauge_info = fg_bq27541_get_info,
 	.get_batt_qmax = fg_bq27541_get_qmax,
 	.get_calib_time = fg_bq27541_get_calib_time,
+	.get_device_name = fg_bq27541_get_device_name,
+	.get_batt_fcc = gauge_get_battery_fcc,
+	.get_batt_cc = gauge_get_battery_cc,
+	.get_batt_soh = gauge_get_battery_soh,
 };
 #endif /* OPLUS_FEATURE_CHG_BASIC */
 
@@ -12900,7 +13001,7 @@ static const struct proc_ops proc_debug_reg_ops =
 	.proc_read = proc_debug_reg_read,
 	.proc_write  = proc_debug_reg_write,
 	.proc_open  = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 
 #ifdef WLS_QI_DEBUG
@@ -12958,7 +13059,7 @@ static const struct proc_ops proc_icl_ops =
 	.proc_read = proc_icl_read,
 	.proc_write  = proc_icl_write,
 	.proc_open  = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 
 static ssize_t proc_fcc_read(struct file *file, char __user *buf, size_t count, loff_t *ppos)
@@ -13015,7 +13116,7 @@ static const struct proc_ops proc_fcc_ops =
 	.proc_read = proc_fcc_read,
 	.proc_write  = proc_fcc_write,
 	.proc_open  = simple_open,
-	.proc_lseek = seq_lseek,
+	.proc_lseek = noop_llseek,
 };
 #endif /*WLS_QI_DEBUG*/
 #endif
@@ -13396,7 +13497,7 @@ static void oplus_chg_track_icl_err_load_trigger_work(
 	if (!bcdev->icl_err_load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(bcdev->icl_err_load_trigger));
+	oplus_chg_track_upload_trigger_data(bcdev->icl_err_load_trigger);
 	mutex_lock(&bcdev->track_icl_err_lock);
 	kfree(bcdev->icl_err_load_trigger);
 	bcdev->icl_err_load_trigger = NULL;
@@ -13414,7 +13515,7 @@ static void oplus_chg_track_adsp_err_load_trigger_work(
 	if (!bcdev->adsp_err_load_trigger)
 		return;
 
-	oplus_chg_track_upload_trigger_data(*(bcdev->adsp_err_load_trigger));
+	oplus_chg_track_upload_trigger_data(bcdev->adsp_err_load_trigger);
 	mutex_lock(&bcdev->track_adsp_err_lock);
 	kfree(bcdev->adsp_err_load_trigger);
 	bcdev->adsp_err_load_trigger = NULL;

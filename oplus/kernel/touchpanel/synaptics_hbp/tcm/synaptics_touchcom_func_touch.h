@@ -86,7 +86,6 @@ enum gesture_classification {
 #define TOUCH_HOLD_UP   0x81
 #define FINGERPRINT_ERR_REPORT   0x84
 
-#define KEY_GESTURE_START 246
 
 #define UNKOWN_GESTURE		0
 #define DOU_TAP			1   /* double tap*/

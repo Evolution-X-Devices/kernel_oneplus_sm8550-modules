@@ -324,10 +324,6 @@ void operate_mode_switch(struct touchpanel_data *ts)
 			mode_switch_health(ts, MODE_EDGE, ts->limit_enable);
 		}
 
-        if (ts->game_switch_support) {
-			mode_switch_health(ts, MODE_GAME, ts->noise_level);
-        }
-
 		if (ts->glove_mode_v2_support) {
 			mode_switch_health(ts, MODE_GLOVE, ts->glove_enable && (!ts->pocket_prevent_mode));
 		}
@@ -541,7 +537,7 @@ static inline void tp_touch_down(struct touchpanel_data *ts, struct point_info p
 	}
 	if (ts->last_x_y_point[id].x != points.x || ts->last_x_y_point[id].y != points.y) {
 		cost_time = ktime_to_us(ktime_get()) - ktime_to_us(ts->monitor_data.irq_to_report_timer);
-		//input_report_abs(ts->input_dev, ABS_TOUCH_COST_TIME_KERNEL, (cost_time < MAX_TOUCH_COST_TIME) ? cost_time : MAX_TOUCH_COST_TIME);
+		input_report_abs(ts->input_dev, ABS_TOUCH_COST_TIME_KERNEL, (cost_time < MAX_TOUCH_COST_TIME) ? cost_time : MAX_TOUCH_COST_TIME);
 	}
 	ts->last_x_y_point[id].x = points.x;
 	ts->last_x_y_point[id].y = points.y;
@@ -727,20 +723,9 @@ static void tp_gesture_handle(struct touchpanel_data *ts)
 
 #endif /* end of CONFIG_OPLUS_TP_APK*/
 
-	if (gesture_info_temp.gesture_type == DOU_TAP
-			&& CHK_BIT(ts->gesture_enable_indep, (1 << gesture_info_temp.gesture_type))) {
-		tp_memcpy(&ts->gesture, sizeof(ts->gesture), \
-			  &gesture_info_temp, sizeof(struct gesture_info), \
-			  sizeof(struct gesture_info));
-		input_report_key(ts->input_dev, KEY_WAKEUP, 1);
-		input_sync(ts->input_dev);
-		input_report_key(ts->input_dev, KEY_WAKEUP, 0);
-		input_sync(ts->input_dev);
-
-	} else if (gesture_info_temp.gesture_type != UNKOWN_GESTURE
-			&& gesture_info_temp.gesture_type != FINGER_PRINTDOWN
-			&& gesture_info_temp.gesture_type != FRINGER_PRINTUP
-			&& CHK_BIT(ts->gesture_enable_indep, (1 << gesture_info_temp.gesture_type))) {
+	if (gesture_info_temp.gesture_type != UNKOWN_GESTURE
+	    && gesture_info_temp.gesture_type != FINGER_PRINTDOWN
+	    && gesture_info_temp.gesture_type != FRINGER_PRINTUP) {
 		retval = tp_memcpy(&ts->gesture, sizeof(ts->gesture), \
 			  &gesture_info_temp, sizeof(struct gesture_info), \
 			  sizeof(struct gesture_info));
@@ -755,9 +740,9 @@ static void tp_gesture_handle(struct touchpanel_data *ts)
 			}
 		}
 
-		input_report_key(ts->input_dev, KEY_GESTURE_START + gesture_info_temp.gesture_type, 1);
+		input_report_key(ts->input_dev, KEY_F4, 1);
 		input_sync(ts->input_dev);
-		input_report_key(ts->input_dev, KEY_GESTURE_START + gesture_info_temp.gesture_type, 0);
+		input_report_key(ts->input_dev, KEY_F4, 0);
 		input_sync(ts->input_dev);
 
 	} else if (gesture_info_temp.gesture_type == FINGER_PRINTDOWN) {
@@ -1533,6 +1518,11 @@ EXIT:
 		if (ts->exception_upload_support) {
 			tp_exception_report(&ts->exception_data, EXCEP_FW_UPDATE, "FW_Update_Failed", sizeof("FW_Update_Failed"));
 		}
+		/*if probe_status is not exit, olc will update log*/
+		ts->is_update_log = 1;
+	} else {
+		/*if probe_status is not exit, olc will update log*/
+		ts->is_update_log = 0;
 	}
 
 	ts->force_update = 0;
@@ -1735,7 +1725,7 @@ static struct attribute_group properties_attr_group = {
  */
 static int init_input_device(struct touchpanel_data *ts)
 {
-	int ret = 0, i = 0;
+	int ret = 0;
 	struct kobject *vk_properties_kobj;
 	static  bool board_properties = false;
 
@@ -1813,8 +1803,8 @@ static int init_input_device(struct touchpanel_data *ts)
 	set_bit(ABS_MT_POSITION_X, ts->input_dev->absbit);
 	set_bit(ABS_MT_POSITION_Y, ts->input_dev->absbit);
 	set_bit(ABS_MT_PRESSURE, ts->input_dev->absbit);
-	/*set_bit(ABS_TOUCH_COST_TIME_KERNEL, ts->input_dev->absbit);
-	set_bit(ABS_TOUCH_COST_TIME_ALGO, ts->input_dev->absbit);
+	set_bit(ABS_TOUCH_COST_TIME_KERNEL, ts->input_dev->absbit);
+	/*set_bit(ABS_TOUCH_COST_TIME_ALGO, ts->input_dev->absbit);
 	set_bit(ABS_TOUCH_COST_TIME_DAEMON, ts->input_dev->absbit);*/
 	set_bit(ABS_MT_TOOL_TYPE, ts->input_dev->absbit);
 	set_bit(INPUT_PROP_DIRECT, ts->input_dev->propbit);
@@ -1826,10 +1816,6 @@ static int init_input_device(struct touchpanel_data *ts)
 
 	if (ts->black_gesture_support) {
 		set_bit(KEY_F4, ts->input_dev->keybit);
-		set_bit(KEY_WAKEUP, ts->input_dev->keybit);
-		for (i = UP_VEE; i <= S_GESTURE; i++) {
-			set_bit(KEY_GESTURE_START + i, ts->input_dev->keybit);
-		}
 #ifdef CONFIG_OPLUS_TP_APK
 		set_bit(KEY_POWER, ts->input_dev->keybit);
 #endif /*end of CONFIG_OPLUS_TP_APK*/
@@ -1894,8 +1880,8 @@ static int init_input_device(struct touchpanel_data *ts)
 			     ts->resolution_info.max_x - 1, 0, 0);
 	input_set_abs_params(ts->input_dev, ABS_MT_POSITION_Y, 0,
 			     ts->resolution_info.max_y - 1, 0, 0);
-	/*input_set_abs_params(ts->input_dev, ABS_TOUCH_COST_TIME_KERNEL, 0, MAX_TOUCH_COST_TIME, 0, 0);
-	input_set_abs_params(ts->input_dev, ABS_TOUCH_COST_TIME_ALGO, 0, MAX_TOUCH_COST_TIME, 0, 0);
+	input_set_abs_params(ts->input_dev, ABS_TOUCH_COST_TIME_KERNEL, 0, MAX_TOUCH_COST_TIME, 0, 0);
+	/*input_set_abs_params(ts->input_dev, ABS_TOUCH_COST_TIME_ALGO, 0, MAX_TOUCH_COST_TIME, 0, 0);
 	input_set_abs_params(ts->input_dev, ABS_TOUCH_COST_TIME_DAEMON, 0, MAX_TOUCH_COST_TIME, 0, 0);*/
 	input_set_drvdata(ts->input_dev, ts);
 	input_set_drvdata(ts->kpd_input_dev, ts);
@@ -2156,6 +2142,18 @@ static void init_panel_config(struct device *dev, struct touchpanel_data *ts)
 			ts->int_mode = val;
 		}
 	}
+
+	rc = of_property_read_u32(chip_np, "touchpanel,tcm-skip-time", &val);
+
+	if (rc) {
+		TP_BOOT_INFO(ts->tp_index, "touchpanel,tcm-skip-time specified\n");
+		ts->tcm_skip_time = BANNABLE;
+	} else {
+		if (val < INTERRUPT_MODE_MAX) {
+			ts->tcm_skip_time = val;
+			TP_BOOT_INFO(ts->tp_index, "tcm-skip-time 1\n");
+		}
+	}
 }
 
 static void tp_healthinfo_init_dts_child_node(struct device *dev, struct touchpanel_data *ts)
@@ -2229,7 +2227,8 @@ static int init_parse_dts(struct device *dev, struct touchpanel_data *ts)
 	ts->black_gesture_support   = of_property_read_bool(np,
 				      "black_gesture_support");
 
-	ts->black_gesture_indep_support = true;
+	ts->black_gesture_indep_support = of_property_read_bool(np,
+								"black_gesture_indep_support");
 
 	ts->gesture_test_support    = of_property_read_bool(np,
 				      "black_gesture_test_support");
@@ -2251,6 +2250,8 @@ static int init_parse_dts(struct device *dev, struct touchpanel_data *ts)
 					      "fingerprint_underscreen_support");
 	ts->fingerprint_not_report_in_suspend = of_property_read_bool(np,
 					      "fingerprint_not_report_in_suspend");
+	ts->fingerprint_error_report_support = of_property_read_bool(np,
+					      "fingerprint_error_report_support");
 	ts->suspend_gesture_cfg   = of_property_read_bool(np, "suspend_gesture_cfg");
 	ts->auto_test_force_pass_support = of_property_read_bool(np,
 					   "auto_test_force_pass_support");
@@ -3469,13 +3470,11 @@ static void tp_delta_read_triggered_by_key_handle(struct work_struct *work)
 	struct debug_info_proc_operations *debug_info_ops;
 	struct touchpanel_data *ts = container_of(work, struct touchpanel_data,
 				key_trigger_work);
-
+	if (!ts)
+		return;
 	TP_INFO(ts->tp_index, "%s:tp_debug= %d\n", __func__, tp_debug);
 
 	if (tp_debug != 2)
-		return;
-
-	if (!ts)
 		return;
 
 	touchpanel_trusted_touch_completion(ts);
@@ -3854,6 +3853,9 @@ int register_common_touch_device(struct touchpanel_data *pdata)
 	touchpanel_trusted_touch_init(ts);
 #endif
 	/*wake_lock_init(&ts->wakelock, WAKE_LOCK_SUSPEND, "tp_wakelock");*/
+	ts->is_update_log = 0;
+	init_probe_status_proc(ts);
+
 	/*step5 : power init*/
 	if(strcmp(ts->touch_environment, "tvm") != 0) {
 		ret = tp_power_init(ts);
@@ -4215,7 +4217,7 @@ int register_common_touch_device(struct touchpanel_data *pdata)
 	ts->loading_fw = false;
 	ts->is_suspended = 0;
 	ts->suspend_state = TP_SPEEDUP_RESUME_COMPLETE;
-	ts->gesture_enable = 1;
+	ts->gesture_enable = 0;
 	ts->fd_enable = 0;
 	ts->fp_enable = 0;
 	ts->aiunit_game_enable = 0;
@@ -4876,6 +4878,7 @@ static void lcd_off_early_event(struct touchpanel_data *ts)
 	} else if (ts->tp_suspend_order == LCD_TP_SUSPEND) {
 		if (!ts->gesture_enable && ts->is_incell_panel) {
 			disable_irq_nosync(ts->irq);
+			ts->irq_state = 0;
 		}
 	}
 
@@ -5574,20 +5577,15 @@ static int tp_control_irq_state(bool enable, unsigned int tp_index)
 	}
 	ts = get_ts_data(tp_index);
 
-	if (!ts) {
+	if (!ts->ts_ops->tp_irq_control) {
 		return 0;
 	}
 
-	TP_INFO(ts->tp_index, "%s %d, %s ts->irq=%d\n", __func__, enable,
-		enable ? "enable" : "disable", ts->irq);
 	if (enable == 1) {
-		enable_irq(ts->irq);
-		TP_INFO(ts->tp_index, "%s: enable_irq.\n", __func__);
+		ts->ts_ops->tp_irq_control(ts->chip_data, true, 0);
 	} else {
-		disable_irq_nosync(ts->irq);
-		TP_INFO(ts->tp_index, "%s: disable_irq_nosync.\n", __func__);
+		ts->ts_ops->tp_irq_control(ts->chip_data, false, 0);
 	}
-
 	return 0;
 }
 

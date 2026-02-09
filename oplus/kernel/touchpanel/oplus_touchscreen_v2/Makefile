@@ -14,8 +14,6 @@ else
 $(info CONFIG_TOUCHPANEL_FAULT_INJECT_ENABLE is N)
 endif
 
-KBUILD_CFLAGS += -Wframe-larger-than=4096
-
 oplus_bsp_tp_comon-y := util_interface/touch_interfaces.o
 oplus_bsp_tp_comon-y += touch_comon_api/touch_comon_api.o
 oplus_bsp_tp_comon-y += touchpanel_healthinfo/touchpanel_healthinfo.o
@@ -37,4 +35,12 @@ oplus_bsp_tp_comon-y += touchpanel_tui_support/touchpanel_tui_support.o
 obj-$(CONFIG_TOUCHPANEL_NOTIFY) += oplus_bsp_tp_notify.o
 
 obj-$(CONFIG_TOUCHPANEL_SYNAPTICS) += Synaptics/
+obj-$(CONFIG_TOUCHPANEL_FOCAL) += Focal/
 obj-$(CONFIG_TOUCHPANEL_GOODIX) += Goodix/
+obj-$(CONFIG_TOUCHPANEL_NOVA) += Novatek/
+obj-$(CONFIG_TOUCHPANEL_HIMAX) += Himax/
+obj-$(CONFIG_TOUCHPANEL_SAMSUNG) += Samsung/
+obj-$(CONFIG_TOUCHPANEL_ILITEK) += ilitek/
+obj-$(CONFIG_TOUCHPANEL_JADARD) += Jadard/
+obj-$(CONFIG_TOUCHPANEL_ST) += St/
+obj-$(CONFIG_TOUCHPANEL_CHIPONE) += chipone/

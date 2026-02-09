@@ -65,19 +65,15 @@
 		} \
 	} while (0)
 
-#ifndef MAX
 #define MAX(a, b) \
 	({__typeof__(a) _a = (a); \
 	__typeof__(b) _b = (b); \
 	_a > _b ? _a : _b; })
-#endif
 
-#ifndef MIN
 #define MIN(a, b) \
 	({__typeof__(a) _a = (a); \
 	__typeof__(b) _b = (b); \
 	_a < _b ? _a : _b; })
-#endif
 
 #define STR(x) #x
 
@@ -139,8 +135,8 @@ enum touch_report_code {
 	TOUCH_REPORT_GESTURE_COORDINATE = 199,
 	TOUCH_REPORT_PALM_DETECTED = 200,
 	TOUCH_GET_WATER_MODE = 202,
-	TOUCH_REPORT_GLOVE_DETECTED = 204,
 	TOUCH_GESTURE_SINGLE_TAP   = 203,
+	TOUCH_REPORT_GLOVE_DETECTED = 204,
 };
 
 enum module_type {
@@ -236,9 +232,9 @@ enum dynamic_config_id {
 	DC_HEADSET_MODE_ENABLED = 0xD1,
 	DC_FREQUENCE_HOPPING = 0xD2,
 	DC_SET_REPORT_FRE = 0x11,
+	DC_GESTURE_MASK   = 0xFE,
 	DC_GLOVE_MODE_ENABLED = 0x0D,
 	DC_GLOVE_MODE_STATE = 0xF5,
-	DC_GESTURE_MASK   = 0xFE,
 	DC_LOW_TEMP_ENABLE = 0xFD,
 	DC_WATERPROOF_ENABLE = 0xFC,
 };
@@ -529,7 +525,6 @@ struct syna_tcm_hcd {
 	int *in_suspend;
 	int block_delay_us;
 	int byte_delay_us;
-	int esd_irq_disabled;
 	int rmidev_major_num;
 	struct spi_bus_data spi_data;
 

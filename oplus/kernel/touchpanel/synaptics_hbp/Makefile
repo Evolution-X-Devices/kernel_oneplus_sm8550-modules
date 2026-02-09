@@ -10,6 +10,7 @@ subdir-ccflags-$(CONFIG_OPLUS_MTK_DRM_GKI_NOTIFY) += -I$(srctree)/drivers/misc/m
 TCM_CORE=tcm/
 ccflags-y += -I$(srctree)/drivers/input/touchscreen/synaptics_hbp/
 ccflags-y += -I$(srctree)/drivers/input/touchscreen/synaptics_hbp/tcm/
+ccflags-y += -I$(srctree)/drivers/input/touchscreen/touchpanel_notify
 
 synaptics_tcm2-y := syna_tcm2.o
 

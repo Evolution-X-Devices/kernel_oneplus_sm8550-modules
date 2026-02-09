@@ -75,10 +75,8 @@ static uint32_t oem_override1_en_value = 0;
 static uint32_t oem_cryptokey_unsupport = 0;
 static uint32_t oem_sec_compatible = 0;
 #define SEC_VALUE_INVALID   -1
-#ifdef QCOM_PLATFORM
 static int g_rpmb_enabled = SEC_VALUE_INVALID;
 static int g_secure_type = SEC_VALUE_INVALID;
-#endif
 #define SHACMDLINELEN 65
 static char g_avbsha256value[SHACMDLINELEN];
 
@@ -182,7 +180,6 @@ static bool is_sboot_support(void)
 }
 #endif
 
-#ifdef QCOM_PLATFORM
 static void get_rpmb_enable_state_from_cmdline(char *bootargs)
 {
     if (bootargs == NULL) {
@@ -247,20 +244,16 @@ static void oplus_secure_parse_cmdline(void)
     // get secure type from cmdline
     get_secure_type_from_cmdline(bootargs);
 }
-#endif
-
 secure_type_t get_secureType(void)
 {
         secure_type_t secureType = SECURE_BOOT_UNKNOWN;
         #if defined(MTK_PLATFORM)
         secureType = is_sboot_support() ? SECURE_BOOT_ON : SECURE_BOOT_OFF;
         #else
-        #ifdef QCOM_PLATFORM
         if (g_secure_type != SEC_VALUE_INVALID) {
             pr_err("%s: g_secure_type %d\n", __func__, g_secure_type);
             secureType = (secure_type_t)g_secure_type;
         } else {
-        #endif /* QCOM_PLATFORM */
             void __iomem *oem_config_base;
             uint32_t secure_oem_config1 = 0;
             uint32_t secure_oem_config2 = 0;
@@ -304,9 +297,7 @@ secure_type_t get_secureType(void)
                     secureType = SECURE_BOOT_ON_STAGE_2;
             }
             #endif
-        #ifdef QCOM_PLATFORM
         }
-        #endif /* QCOM_PLATFORM */
         #endif
         return secureType;
 }
@@ -487,7 +478,6 @@ static struct file_operations oemLogEncrypt_proc_fops = {
 #endif
 #endif //QCOM_QSEELOG_ENCRYPT
 
-#ifdef QCOM_PLATFORM
 static ssize_t rpmbEnableStatus_read_proc(struct file *file, char __user *buf,
                 size_t count, loff_t *off)
 {
@@ -518,7 +508,6 @@ static const struct proc_ops rpmbEnableStatus_proc_fops = {
 static struct file_operations rpmbEnableStatus_proc_fops = {
     .read = rpmbEnableStatus_read_proc,
 };
-#endif
 #endif
 
 static int get_avbsha256_hash(char *avbcmdline, size_t cnt)
@@ -627,7 +616,6 @@ static int secure_register_proc_fs(struct secure_data *secure_data)
         }
 #endif //QCOM_QSEELOG_ENCRYPT
 
-#ifdef QCOM_PLATFORM
         /* Do not create the node when the cmdline value cannot be read */
         if (g_rpmb_enabled != SEC_VALUE_INVALID) {
             /*  make the proc /proc/oplus_secure_common/rpmbEnableStatus  */
@@ -638,7 +626,6 @@ static int secure_register_proc_fs(struct secure_data *secure_data)
             }
         }
 
-#endif
         /*  make the proc /proc/oplus_secure_common/avbKeySha256  */
         memset(g_avbsha256value, 0, SHACMDLINELEN);
         if (get_avbsha256_hash(g_avbsha256value, SHACMDLINELEN) != SEC_VALUE_INVALID) {
@@ -668,10 +655,8 @@ static int oplus_secure_common_probe(struct platform_device *secure_dev)
         secure_data->dev = dev;
         secure_data_ptr = secure_data;
 
-#ifdef QCOM_PLATFORM
         // parse cmdline
         oplus_secure_parse_cmdline();
-#endif
 
         //add to get the parent dts oplus_secure_common
         ret = secure_common_parse_parent_dts(secure_data);
