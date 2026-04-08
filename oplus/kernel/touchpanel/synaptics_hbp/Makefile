@@ -33,3 +33,6 @@ synaptics_tcm2-y += touchpanel_healthinfo/touchpanel_healthinfo.o
 synaptics_tcm2-y += touchpanel_healthinfo/touchpanel_exception.o
 
 obj-$(CONFIG_TOUCHSCREEN_SYNA_TCM2) += synaptics_tcm2.o
+
+ccflags-y += -I$(src)/../oplus_touchscreen_v2/touchpanel_notify
+
